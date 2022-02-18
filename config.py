@@ -17,3 +17,12 @@ mode = "train_esrgan"
 # experience 
 experience_name = "default_experience_esrgan_" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
+
+if mode == "train_esrgan": 
+
+    epochs = 40
+    print_frequency = 500
+    resume = False 
+    
+    weight_path = ""
+    start_epoch = 0
