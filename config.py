@@ -26,3 +26,4 @@ if mode == "train_esrgan":
     
     weight_path = ""
     start_epoch = 0
+
