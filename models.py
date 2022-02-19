@@ -40,11 +40,17 @@ class Generator(nn.Module):
     def __init__(self, input_size): 
         super(Generator, self).__init__()
         self.conv1 = torch.nn.Conv2d(3, 64, 3, padding=1)
+
         self.rrdb1 = RRDB(64, 3)
         self.rrdb2 = RRDB(64, 3)
         self.rrdb3 = RRDB(64, 3)
         self.rrdb4 = RRDB(64, 3)
         self.rrdb5 = RRDB(64, 3)
+        self.rrdb6 = RRDB(64, 3)
+        self.rrdb7 = RRDB(64, 3)
+        self.rrdb8 = RRDB(64, 3)
+        self.rrdb9 = RRDB(64, 3)
+        self.rrdb10 = RRDB(64, 3)
         self.prelu = nn.PReLU()
         self.conv2 = torch.nn.Conv2d(64, 64, 3, padding=1)
         
@@ -74,8 +80,18 @@ class Generator(nn.Module):
         block4 = block3 + block4 
         block5 = self.rrdb5(block4) * config.residual_scaling
         block5 = block4 + block5 
+        block6 = self.rrdb6(block5) * config.residual_scaling
+        block6 = block5 + block6 
+        block7 = self.rrdb7(block6) * config.residual_scaling
+        block7 = block6 + block7 
+        block8 = self.rrdb8(block7) * config.residual_scaling
+        block8 = block4 + block8 
+        block9 = self.rrdb9(block8) * config.residual_scaling
+        block9 = block4 + block9 
+        block10 = self.rrdb10(block9) * config.residual_scaling
+        block10 = block4 + block10 
 
-        out1 = self.prelu(self.conv2(block5))
+        out1 = self.prelu(self.conv2(block10))
         out1 = out1 + out0 
         out2 = self.upsampling_block(out1)
         
