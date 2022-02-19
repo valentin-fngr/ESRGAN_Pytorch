@@ -11,9 +11,10 @@ def main():
     """
     if config.split_inside: 
         # split the folder into train test val subfolders
-        print(config.main_folder)
-        split_inside_fodler(config.main_folder, config.train_split, config.test_split, config.val_split)
-
+        if config.mode == "train_esrgan": 
+            if config.split_inside:
+               split_inside_fodler(config.main_folder, config.train_split, config.test_split, config.val_split)
+            
 
 if __name__ == "__main__": 
     main()
