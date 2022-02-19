@@ -4,8 +4,7 @@ from torchvision import transforms
 import glob
 
 
-
-class FaceDataset(Dataset): 
+class CustomDataset(Dataset): 
 
     def __init__(self, folder, upscale_factor, hr_size): 
         self.folder = folder 
