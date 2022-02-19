@@ -17,6 +17,9 @@ mode = "train_esrgan"
 # high resolution size 
 hr_size = 128
 
+# batch size 
+batch_size = 16
+
 # experience 
 experience_name = "default_experience_esrgan_" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
@@ -33,10 +36,9 @@ if mode == "train_esrgan":
     
     weight_path = ""
     start_epoch = 0
-
     # use split_inside = True if you have only one folder containing all images, 
     # so the data can be splitted inside this folder
-    split_inside = True
+    split_inside = False
     # use the following splits if you do not have  train test split folders and you wish to divide your main image folder 
     train_split = 0.7 
     test_split = 0.1 

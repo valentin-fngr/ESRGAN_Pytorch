@@ -2,6 +2,7 @@ import os
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import glob
+from PIL import Image
 
 
 class CustomDataset(Dataset): 
@@ -14,13 +15,11 @@ class CustomDataset(Dataset):
 
         self.hr_transforms = transforms.Compose([
             transforms.Resize(hr_size), 
-            transforms.RandomHorizontalFlip(), 
             transforms.ToTensor(), 
             transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         ])
         self.lr_transforms = transforms.Compose([
             transforms.Resize(hr_size // upscale_factor), 
-            transforms.RandomHorizontalFlip(), 
             transforms.ToTensor(), 
             transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         ])
@@ -31,7 +30,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx): 
         img_name = self.files[idx] 
-        image_obj = open(img_name)
+        image_obj = Image.open(img_name)
 
         return {
             "hr" : self.hr_transforms(image_obj), 
