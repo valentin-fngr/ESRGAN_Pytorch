@@ -99,3 +99,54 @@ class Generator(nn.Module):
 
         return out3
         
+
+
+class DiscConvBlock(nn.Module): 
+    
+    def __init__(self, in_c, out_c, stride=1): 
+        super(DiscConvBlock, self).__init__()
+        self.in_c = in_c
+        self.stride=stride
+        self.out_c = out_c
+        self.conv1 = nn.Conv2d(in_c, out_c, 3, stride=stride)
+        self.bn = nn.BatchNorm2d(out_c)
+        self.lrelu = nn.LeakyReLU(0.2)
+        
+    def forward(self, x): 
+        x = self.conv1(x) 
+        x = self.bn(x) 
+        x = self.lrelu(x)
+        
+        return x
+
+class Discriminator(nn.Module): 
+    
+    def __init__(self): 
+        super(Discriminator, self).__init__()
+        self.conv1 = nn.Conv2d(3, 64, 3) 
+        self.lrelu = nn.LeakyReLU(0.2)
+                
+        self.convblocks = nn.Sequential(*[
+            DiscConvBlock(64, 128, 2), 
+            DiscConvBlock(128, 128, 1), 
+            DiscConvBlock(128, 256, 2), 
+            DiscConvBlock(256, 256, 1), 
+            DiscConvBlock(256, 512, 2),
+            DiscConvBlock(512, 128, 1), 
+        ])
+        self.fc = nn.Linear(128 * 11 * 11, 1024) 
+        self.lrelu = nn.LeakyReLU(0.2) 
+        self.final = nn.Linear(1024, 1) 
+        self.sigmoid = torch.nn.functional.sigmoid
+        
+    def forward(self, x): 
+        x = self.conv1(x) 
+        x = self.lrelu(x)
+        x = self.convblocks(x) 
+        x = torch.flatten(x, 1)
+        x = self.fc(x) 
+        x = self.lrelu(x) 
+        x = self.final(x) 
+        x = self.sigmoid(x)
+        
+        return x

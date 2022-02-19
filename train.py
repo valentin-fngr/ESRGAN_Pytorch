@@ -7,7 +7,7 @@ from dataset import CustomDataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np 
-from models import Generator
+from models import Generator, Discriminator
 from torchinfo import summary
 
 
@@ -39,7 +39,7 @@ def get_models(generator_weights=None, discriminator_weights=None):
     """
 
     generator = Generator(config.lr_size).to(config.device)
-    discriminator = None
+    discriminator = Discriminator().to(config.device)
     return generator, discriminator
 
 
