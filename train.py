@@ -1,10 +1,15 @@
-import os 
+import os
+
+from torch import device 
 import config 
 from scripts.build_data import split_inside_fodler
 from dataset import CustomDataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np 
+from models import Generator
+from torchinfo import summary
+
 
 def load_dataset(): 
 
@@ -28,6 +33,16 @@ def load_dataset():
     return train_loader, val_loader
 
 
+def get_models(generator_weights=None, discriminator_weights=None): 
+    """
+        TODO : add saved weight when resume = True
+    """
+
+    generator = Generator(config.lr_size).to(config.device)
+    discriminator = None
+    return generator, discriminator
+
+
 def plot_image(img_array): 
     img = img_array.detach().cpu().numpy()
     img = np.transpose(img, [1,2,0])
@@ -44,13 +59,6 @@ def main():
             split_inside_fodler(config.main_folder, config.train_split, config.test_split, config.val_split)
 
         train_loader, val_loader = load_dataset()
-        
-        samples = iter(train_loader).next()
-        
-        hr = samples["hr"]
-        lr = samples["lr"]
-        plot_image(hr[1])
-        plot_image(lr[1])
 
 
 

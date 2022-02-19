@@ -8,14 +8,17 @@ torch.manual_seed(0)
 # device 
 device = torch.device("cuda", 0)
 
-# upsampling coefficient
-upsample_coefficient = 4
 
 # mode selection : traning esrgan | validation
 mode = "train_esrgan"
 
 # high resolution size 
 hr_size = 128
+# upsampling coefficient
+upsample_coefficient = 4
+
+lr_size = hr_size // upsample_coefficient
+
 
 # batch size 
 batch_size = 16
@@ -25,10 +28,16 @@ experience_name = "default_experience_esrgan_" + datetime.today().strftime('%Y-%
 
 # dataset path 
 data_dir = os.path.join(os.getcwd(), "data")
-print(data_dir)
 
+# leaky relu slope 
+lrelu_slope = 0.2
+
+# residual scaling
+residual_scaling = 0.2
 
 if mode == "train_esrgan": 
+
+
 
     epochs = 40
     print_frequency = 500
