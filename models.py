@@ -3,6 +3,8 @@ import numpy as np
 import torch.nn as nn 
 import torch.nn.functional as F
 import config
+import torchvision
+
 
 class RRDB(nn.Module): 
     """
@@ -137,7 +139,6 @@ class Discriminator(nn.Module):
         self.fc = nn.Linear(128 * 11 * 11, 1024) 
         self.lrelu = nn.LeakyReLU(0.2) 
         self.final = nn.Linear(1024, 1) 
-        self.sigmoid = torch.nn.functional.sigmoid
         
     def forward(self, x): 
         x = self.conv1(x) 
@@ -147,6 +148,43 @@ class Discriminator(nn.Module):
         x = self.fc(x) 
         x = self.lrelu(x) 
         x = self.final(x) 
-        x = self.sigmoid(x)
         
         return x
+
+
+class RelativisticDiscriminator(nn.Module):
+
+    def __init__(self, discriminator): 
+        super(RelativisticDiscriminator, self).__init__()
+        self.discriminator = discriminator
+
+    def forward(self, focus_data, compare_data):
+        """
+            compute the relativistic discriminator output. 
+            Arguments: 
+                focus_data : quantity on the left side of the difference
+                compare_data : quantity on the right side of the difference
+        """
+
+        focus_output = self.discriminator(focus_data)
+        compare_output = self.discriminator(compare_data)
+
+        difference = focus_output - compare_data.mean(dim=0)
+
+        return F.sigmoid(difference)
+        
+
+class ContentLoss(nn.Module): 
+
+
+    def __init__(self): 
+        super(ContentLoss, self).__init__()
+        self.vgg19 = torchvision.models.vgg19(pretrained=True).eval()
+        self.layers = list(self.vgg19.features.children())[:36]
+        self.loss = torch.nn.MSELoss()
+
+    def forward(self, sr, hr): 
+        sr_vgg = self.layers(sr)
+        hr_vgg = self.layers(hr)
+
+        return self.loss(sr_vgg, hr_vgg)

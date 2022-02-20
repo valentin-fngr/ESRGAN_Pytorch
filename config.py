@@ -37,8 +37,13 @@ residual_scaling = 0.2
 
 if mode == "train_esrgan": 
 
-
-
+    # use psnr_oriented if it's the first time you are training the model 
+    # use post_training to initialize the model with parameters from psnr_oriented training (generator)
+    train_mode = "pnsr_oriented"
+    learning_rate_pnsr = 2*10e-4
+    learning_rate_post = 10e-4
+    beta1 = 0.9
+    beta2 = 0.999
     epochs = 40
     print_frequency = 500
     resume = False 
@@ -52,6 +57,10 @@ if mode == "train_esrgan":
     train_split = 0.7 
     test_split = 0.1 
     val_split = 0.2
+
+    # loss function coefficients
+    l1_coefficient = 5*10e-3
+    relativistic_coefficient = 1*10e-2 
 
     # your image folder before train test split folders
     main_folder = os.path.join(data_dir, "faces/img")
