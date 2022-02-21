@@ -106,10 +106,9 @@ def validate(generator, val_dataloader, pnsr_criterion, epoch, writer):
             psnr = compute_psnr(hr, sr, pnsr_criterion) 
             psnrs.append(psnr.mean())
 
-            print("Average PSNR")
 
-            avg_psnr = torch.Tensor(psnrs).mean()
-            writer.add_scalar("Validation/PSNR", avg_psnr, i+1)
+        avg_psnr = torch.Tensor(psnrs).mean()
+        writer.add_scalar("Validation/PSNR", avg_psnr, i+1)
     
     return avg_psnr
 
@@ -136,7 +135,7 @@ def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch
         g_optim.step()
 
         # writing with tensorboard
-        writer.add_scalar("Metric/l1_loss_pnsr_state", l1_loss, epoch + i + 1)
+        writer.add_scalar("Metric/l1_loss_pnsr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
         
         if i % 50 == 0 and i != 0: 
             print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in pnsr training mode : {l1_loss} ")  
