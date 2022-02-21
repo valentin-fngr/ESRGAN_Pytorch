@@ -76,13 +76,49 @@ def define_losses():
     # evaluates difference between the genereated sr and hr
     l1_criterion = nn.L1Loss().to(config.device)
     vgg_criterion = ContentLoss().to(config.device)
-    adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device) # with logit ! 
-    return l1_criterion, vgg_criterion, adversarial_criterion
+    adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device) # with logit !
+    pnsr_criterion = torch.nn.MSELoss().to(config.device) # to compute the pnsr  
+    return l1_criterion, vgg_criterion, adversarial_criterion, pnsr_criterion 
         
+
+def compute_psnr(hr, sr, pnsr_criterion): 
+    """
+        Computer the pnsr
+    """
+    return 10 * (torch.log10(1/pnsr_criterion(hr, sr)))
+
+
+def validate(generator, val_dataloader, pnsr_criterion, epoch, writer): 
+    """
+        validation based on pnsr
+    """
+
+    with torch.no_grad(): 
+        psnrs = []
+        for i, sample in enumerate(val_dataloader): 
+            hr = sample["hr"].to(config.device) 
+            lr = sample["lr"].to(config.device)
+
+            # generate super resolution 
+            sr = generator(lr)
+
+            # compute psnr
+            psnr = compute_psnr(hr, sr, pnsr_criterion) 
+            psnrs.append(psnr.mean())
+
+            print("Average PSNR")
+
+            avg_psnr = torch.Tensor(psnrs).mean()
+            writer.add_scalar("Validation/PSNR", avg_psnr, i+1)
+    
+    return avg_psnr
+
+
+
+
 
 def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch): 
 
-    generator.train() 
 
     for i, samples in enumerate(train_dataloader): 
         
@@ -103,7 +139,7 @@ def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch
         writer.add_scalar("Metric/l1_loss_pnsr_state", l1_loss, epoch + i + 1)
         
         if i % 50 == 0 and i != 0: 
-            print(f"L1 loss in pnsr training mode : {l1_loss}")  
+            print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in pnsr training mode : {l1_loss} ")  
 
 
 def main(): 
@@ -116,6 +152,7 @@ def main():
 
         print("----- Loading the training and validation data -----")
         train_loader, val_loader = load_dataset()
+        
         print("----- Successfuly loaded training and validation data ----- \n")
         # start training regarding the mode 
         
@@ -124,7 +161,7 @@ def main():
         print("----- Successfuly loaded models ----- \n")
         
         print("----- Loading losses -----")
-        l1_criterion, vgg_criterion, adversarial_criterion = define_losses()
+        l1_criterion, vgg_criterion, adversarial_criterion, pnsr_criterion = define_losses()
         print("----- Successfuly loaded all losses -----")
 
 
@@ -139,7 +176,9 @@ def main():
         print("----- Initiliazing Tensorboard writer -----")
         writer = SummaryWriter(log_dir=f"runs/{config.experience_name}", comment=config.experience_name)
         print("----- Successfuly initialized a Tensorboard writer ----- \n")
-
+        
+        generator.train()
+        best_psnr = 0.0
 
         for epoch in range(config.epochs): 
             # iteration 
@@ -148,9 +187,19 @@ def main():
             elif config.train_mode == "post_training": 
                 pass
             
+            
+            print("----- Validation step -----")
+            psnr = validate(generator, val_loader, pnsr_criterion, epoch, writer)
+            print(f"----- Validation score on PSNR : {psnr}")
+            
+            if psnr >= best_psnr: 
+                print(f"----- Saving new best weights for epoch {epoch} -----")
+                best_psnr = psnr
+                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best, f"best_weight_gen_{epoch}.pth"))
+
             torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch, f"g_epoch={epoch+1}.pth"))
 
-            # TODO : maybe some checkpoints stuff
+            
 
             
 

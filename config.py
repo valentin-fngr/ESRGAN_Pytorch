@@ -24,7 +24,7 @@ lr_size = hr_size // upsample_coefficient
 batch_size = 16
 
 # experience 
-experience_name = "default_experience_esrgan_" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+experience_name = "train_psnr_oriented" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
 # dataset path 
 data_dir = os.path.join(os.getcwd(), "data")
