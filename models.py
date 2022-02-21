@@ -171,7 +171,7 @@ class RelativisticDiscriminator(nn.Module):
 
         difference = focus_output - compare_data.mean(dim=0)
 
-        return F.sigmoid(difference)
+        return difference
         
 
 class ContentLoss(nn.Module): 
