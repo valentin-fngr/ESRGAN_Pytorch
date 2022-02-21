@@ -11,7 +11,8 @@ from models import Generator, RelativisticDiscriminator, Discriminator, ContentL
 from torchinfo import summary
 import torch.optim as optim
 import torch.nn as nn
-
+from torch.utils.tensorboard import SummaryWriter
+import torch
 
 
 def plot_image(img_array): 
@@ -57,8 +58,13 @@ def get_models(generator_weights=None, discriminator_weights=None):
     
 
 def get_optimizers(generator, discriminator): 
-    generator_optim = optim.Adam(generator.parameters(), lr=config.learning_rate, betas=(config.beta1, config.beta2))
-    discriminator_optim = optim.Adam(discriminator.parameters(), lr=config.learning_rate, betas=(config.beta1, config.beta2))
+    if config.train_mode == "pnsr_oriented": 
+        lr = config.learning_rate_pnsr
+    elif config.train_mode == "post_training": 
+        lr = config.learning_rate_post
+
+    generator_optim = optim.Adam(generator.parameters(), lr=lr, betas=(config.beta1, config.beta2))
+    discriminator_optim = optim.Adam(discriminator.parameters(), lr=lr, betas=(config.beta1, config.beta2))
 
     return generator_optim, discriminator_optim 
 
@@ -74,6 +80,31 @@ def define_losses():
     return l1_criterion, vgg_criterion, adversarial_criterion
         
 
+def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch): 
+
+    generator.train() 
+
+    for i, samples in enumerate(train_dataloader): 
+        
+        # load data 
+        hr = samples["hr"].to(config.device) 
+        lr = samples["lr"].to(config.device)
+
+        # generate super resolution 
+        sr = generator(lr)
+
+        # compute l1 loss
+        l1_loss = l1_criterion(hr, sr)
+        generator.zero_grad()
+        l1_loss.backward() 
+        g_optim.step()
+
+        # writing with tensorboard
+        writer.add_scalar("Metric/l1_loss_pnsr_state", l1_loss, epoch + i + 1)
+        
+        if i % 50 == 0 and i != 0: 
+            print(f"L1 loss in pnsr training mode : {l1_loss}")  
+
 
 def main(): 
     """
@@ -85,12 +116,12 @@ def main():
 
         print("----- Loading the training and validation data -----")
         train_loader, val_loader = load_dataset()
-        print("----- Successfuly loaded training and validation data -----")
+        print("----- Successfuly loaded training and validation data ----- \n")
         # start training regarding the mode 
         
         print("----- Loading models -----")
         generator, discriminator, relativistic_discriminator = get_models()
-        print("----- Successfuly loaded models -----")
+        print("----- Successfuly loaded models ----- \n")
         
         print("----- Loading losses -----")
         l1_criterion, vgg_criterion, adversarial_criterion = define_losses()
@@ -102,15 +133,22 @@ def main():
             g_optim, d_optim = get_optimizers(generator, discriminator) 
         elif config.train_mode == "post_training": 
             g_optim, d_optim = get_optimizers(generator, relativistic_discriminator)       
-        print("----- Successfuly loaded all optimizers -----")
+        print("----- Successfuly loaded all optimizers ----- \n")
+
+
+        print("----- Initiliazing Tensorboard writer -----")
+        writer = SummaryWriter(log_dir=f"runs/{config.experience_name}", comment=config.experience_name)
+        print("----- Successfuly initialized a Tensorboard writer ----- \n")
+
 
         for epoch in range(config.epochs): 
             # iteration 
             if config.train_mode == "pnsr_oriented": 
-                # TODO
-                pass 
+                train_psnr(generator, g_optim, train_loader, l1_criterion, writer, epoch) 
             elif config.train_mode == "post_training": 
                 pass
+            
+            torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch, f"g_epoch={epoch+1}.pth"))
 
             # TODO : maybe some checkpoints stuff
 
