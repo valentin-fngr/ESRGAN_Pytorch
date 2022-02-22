@@ -40,15 +40,20 @@ checkpoints_best = os.path.join(checkpoints_dir, "best")
 residual_scaling = 0.2
 
 if mode == "train_esrgan": 
+    epochs = 40
 
     # use psnr_oriented if it's the first time you are training the model 
     # use post_training to initialize the model with parameters from psnr_oriented training (generator)
     train_mode = "pnsr_oriented"
     learning_rate_pnsr = 2*1e-4
     learning_rate_post = 1e-4
+
+    decay_time = epochs // 2
+    decay_rate = 2
+
+
     beta1 = 0.9
     beta2 = 0.999
-    epochs = 40
     print_frequency = 500
     resume = False 
     

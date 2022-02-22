@@ -108,13 +108,16 @@ def validate(generator, val_dataloader, pnsr_criterion, epoch, writer):
 
 
         avg_psnr = torch.Tensor(psnrs).mean()
-        writer.add_scalar("Validation/PSNR", avg_psnr, i+1)
+        writer.add_scalar(f"{config.train_mode}/PSNR", avg_psnr, epoch)
     
     return avg_psnr
 
 
+def get_scheduler(g_optim, d_optim): 
+    g_scheduler = torch.optim.lr_scheduler.StepLR(g_optim, config.decay_time, gamma=config.decay_rate, verbose=True)
+    d_scheduler = torch.optim.lr_scheduler.StepLR(d_optim, config.decay_time, gamma=config.decay_rate, verbose=True)
 
-
+    return g_scheduler, d_scheduler
 
 def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch): 
 
@@ -135,7 +138,7 @@ def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch
         g_optim.step()
 
         # writing with tensorboard
-        writer.add_scalar("Metric/l1_loss_pnsr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/l1_loss_pnsr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
         
         if i % 50 == 0 and i != 0: 
             print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in pnsr training mode : {l1_loss} ")  
@@ -169,6 +172,8 @@ def main():
             g_optim, d_optim = get_optimizers(generator, discriminator) 
         elif config.train_mode == "post_training": 
             g_optim, d_optim = get_optimizers(generator, relativistic_discriminator)       
+        g_scheduler, d_scheduler = get_scheduler(g_optim, d_optim)
+        
         print("----- Successfuly loaded all optimizers ----- \n")
 
 
@@ -197,6 +202,9 @@ def main():
                 torch.save(generator.state_dict(), os.path.join(config.checkpoints_best, f"best_weight_gen_{epoch}.pth"))
 
             torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch, f"g_epoch={epoch+1}.pth"))
+
+            # update schedulers 
+            g_scheduler.step() 
 
             
 
