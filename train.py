@@ -206,7 +206,10 @@ def main():
         
 
         print("------ Checking for existing checkpoints ------")
-        resume_from_checkpoints()
+        if config.train_mode == "psnr_oriented": 
+            resume_from_checkpoints(generator, discriminator)
+        elif config.train_mode == "post_trainingl": 
+            resume_from_checkpoints(generator, RelativisticDiscriminator)
         print("------ Done with checkpoints ------")
 
 
@@ -228,7 +231,7 @@ def main():
             if psnr >= best_psnr: 
                 print(f"----- Saving new best weights for epoch {epoch} -----")
                 best_psnr = psnr
-                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen}.pth"))
+                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen.pth"))
 
             torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch={epoch+1}.pth"))
 
@@ -236,8 +239,7 @@ def main():
 
             
 
-            
-
+        
 
 if __name__ == "__main__": 
     main()
