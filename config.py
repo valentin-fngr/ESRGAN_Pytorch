@@ -33,8 +33,10 @@ data_dir = os.path.join(os.getcwd(), "data")
 lrelu_slope = 0.2
 
 checkpoints_dir = os.path.join(os.getcwd(), "checkpoints")
-checkpoints_epoch = os.path.join(checkpoints_dir, "on_epoch")
-checkpoints_best = os.path.join(checkpoints_dir, "best")
+checkpoints_epoch_g = os.path.join(checkpoints_dir, "on_epoch/generator")
+checkpoints_epoch_d = os.path.join(checkpoints_dir, "on_epoch/discriminator")
+checkpoints_best_g = os.path.join(checkpoints_dir, "best/generator")
+checkpoints_best_d = os.path.join(checkpoints_dir, "best/discriminator")
 
 # residual scaling
 residual_scaling = 0.2
@@ -55,10 +57,10 @@ if mode == "train_esrgan":
     beta1 = 0.9
     beta2 = 0.999
     print_frequency = 500
-    resume = False 
-    
-    weight_path = ""
+    resume = False     
     start_epoch = 0
+    best_weight_g = ""
+    best_weight_d = ""
     # use split_inside = True if you have only one folder containing all images, 
     # so the data can be splitted inside this folder
     split_inside = False

@@ -1,3 +1,4 @@
+from email.policy import strict
 import os
 
 from torch import device 
@@ -119,6 +120,27 @@ def get_scheduler(g_optim, d_optim):
 
     return g_scheduler, d_scheduler
 
+
+def resume_from_checkpoints(generator, discriminator): 
+    if config.resume: 
+        # check for best weights in directories 
+        if config.best_weight_g: 
+            trained_weights = torch.load(config.best_weight_g)
+            model_weights = generator.state_dict()
+            model_weights.update({k:v for k,v in trained_weights.items() if k in model_weights.keys()})
+            generator.load_state_dict(model_weights, strict=True)
+            print(f"Loaded pretrained weights from {config.best_weight_g} \n")
+
+        if config.best_weight_d: 
+            trained_weights = torch.load(config.best_weight_d)
+            model_weights = discriminator.state_dict()
+            model_weights.update({k:v for k,v in trained_weights.items() if k in model_weights.keys()})
+            discriminator.load_state_dict(model_weights)
+            print(f"Loaded pretrained weights from {config.best_weight_d}")
+    else: 
+        print(f"Training in {config.train_mode} mode from scratch \n")
+
+
 def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch): 
 
 
@@ -172,6 +194,7 @@ def main():
             g_optim, d_optim = get_optimizers(generator, discriminator) 
         elif config.train_mode == "post_training": 
             g_optim, d_optim = get_optimizers(generator, relativistic_discriminator)       
+        
         g_scheduler, d_scheduler = get_scheduler(g_optim, d_optim)
         
         print("----- Successfuly loaded all optimizers ----- \n")
@@ -181,6 +204,12 @@ def main():
         writer = SummaryWriter(log_dir=f"runs/{config.experience_name}", comment=config.experience_name)
         print("----- Successfuly initialized a Tensorboard writer ----- \n")
         
+
+        print("------ Checking for existing checkpoints ------")
+        resume_from_checkpoints()
+        print("------ Done with checkpoints ------")
+
+
         generator.train()
         best_psnr = 0.0
 
@@ -199,11 +228,10 @@ def main():
             if psnr >= best_psnr: 
                 print(f"----- Saving new best weights for epoch {epoch} -----")
                 best_psnr = psnr
-                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best, f"best_weight_gen_{epoch}.pth"))
+                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen}.pth"))
 
-            torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch, f"g_epoch={epoch+1}.pth"))
+            torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch={epoch+1}.pth"))
 
-            # update schedulers 
             g_scheduler.step() 
 
             
