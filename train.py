@@ -8,7 +8,7 @@ from dataset import CustomDataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np 
-from models import Generator, RelativisticDiscriminator, Discriminator, ContentLoss
+from models import Generator, Discriminator, ContentLoss
 from torchinfo import summary
 import torch.optim as optim
 import torch.nn as nn
@@ -54,13 +54,12 @@ def get_models(generator_weights=None, discriminator_weights=None):
     discriminator = Discriminator()
 
     generator = Generator(config.lr_size).to(config.device)
-    relativistic_discriminator = RelativisticDiscriminator(discriminator).to(config.device)
-    return generator, discriminator, relativistic_discriminator
+    return generator, discriminator
     
 
 def get_optimizers(generator, discriminator): 
-    if config.train_mode == "pnsr_oriented": 
-        lr = config.learning_rate_pnsr
+    if config.train_mode == "psnr_oriented": 
+        lr = config.learning_rate_psnr
     elif config.train_mode == "post_training": 
         lr = config.learning_rate_post
 
@@ -78,20 +77,20 @@ def define_losses():
     l1_criterion = nn.L1Loss().to(config.device)
     vgg_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device) # with logit !
-    pnsr_criterion = torch.nn.MSELoss().to(config.device) # to compute the pnsr  
-    return l1_criterion, vgg_criterion, adversarial_criterion, pnsr_criterion 
+    psnr_criterion = torch.nn.MSELoss().to(config.device) # to compute the psnr  
+    return l1_criterion, vgg_criterion, adversarial_criterion, psnr_criterion 
         
 
-def compute_psnr(hr, sr, pnsr_criterion): 
+def compute_psnr(hr, sr, psnr_criterion): 
     """
-        Computer the pnsr
+        Computer the psnr
     """
-    return 10 * (torch.log10(1/pnsr_criterion(hr, sr)))
+    return 10 * (torch.log10(1/psnr_criterion(hr, sr)))
 
 
-def validate(generator, val_dataloader, pnsr_criterion, epoch, writer): 
+def validate(generator, val_dataloader, psnr_criterion, epoch, writer): 
     """
-        validation based on pnsr
+        validation based on psnr
     """
 
     with torch.no_grad(): 
@@ -104,7 +103,7 @@ def validate(generator, val_dataloader, pnsr_criterion, epoch, writer):
             sr = generator(lr)
 
             # compute psnr
-            psnr = compute_psnr(hr, sr, pnsr_criterion) 
+            psnr = compute_psnr(hr, sr, psnr_criterion) 
             psnrs.append(psnr.mean())
 
 
@@ -160,10 +159,10 @@ def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch
         g_optim.step()
 
         # writing with tensorboard
-        writer.add_scalar(f"{config.train_mode}/l1_loss_pnsr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/l1_loss_psnr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
         
         if i % 50 == 0 and i != 0: 
-            print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in pnsr training mode : {l1_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in psnr training mode : {l1_loss} ")  
 
 
 def main(): 
@@ -181,19 +180,16 @@ def main():
         # start training regarding the mode 
         
         print("----- Loading models -----")
-        generator, discriminator, relativistic_discriminator = get_models()
+        generator, discriminator = get_models()
         print("----- Successfuly loaded models ----- \n")
         
         print("----- Loading losses -----")
-        l1_criterion, vgg_criterion, adversarial_criterion, pnsr_criterion = define_losses()
+        l1_criterion, vgg_criterion, adversarial_criterion, psnr_criterion = define_losses()
         print("----- Successfuly loaded all losses -----")
 
 
         print("----- Loading optimizers -----")
-        if config.train_mode == "pnsr_oriented": 
-            g_optim, d_optim = get_optimizers(generator, discriminator) 
-        elif config.train_mode == "post_training": 
-            g_optim, d_optim = get_optimizers(generator, relativistic_discriminator)       
+        g_optim, d_optim = get_optimizers(generator, discriminator) 
         
         g_scheduler, d_scheduler = get_scheduler(g_optim, d_optim)
         
@@ -206,10 +202,7 @@ def main():
         
 
         print("------ Checking for existing checkpoints ------")
-        if config.train_mode == "psnr_oriented": 
-            resume_from_checkpoints(generator, discriminator)
-        elif config.train_mode == "post_trainingl": 
-            resume_from_checkpoints(generator, RelativisticDiscriminator)
+        resume_from_checkpoints(generator, discriminator)
         print("------ Done with checkpoints ------")
 
 
@@ -218,14 +211,14 @@ def main():
 
         for epoch in range(config.epochs): 
             # iteration 
-            if config.train_mode == "pnsr_oriented": 
+            if config.train_mode == "psnr_oriented": 
                 train_psnr(generator, g_optim, train_loader, l1_criterion, writer, epoch) 
             elif config.train_mode == "post_training": 
-                pass
+                train_post_psnr(generator, discriminator)
             
             
             print("----- Validation step -----")
-            psnr = validate(generator, val_loader, pnsr_criterion, epoch, writer)
+            psnr = validate(generator, val_loader, psnr_criterion, epoch, writer)
             print(f"----- Validation score on PSNR : {psnr}")
             
             if psnr >= best_psnr: 
