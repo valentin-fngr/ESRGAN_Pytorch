@@ -88,14 +88,14 @@ def compute_psnr(hr, sr, psnr_criterion):
     return 10 * (torch.log10(1/psnr_criterion(hr, sr)))
 
 
-def validate(generator, val_dataloader, psnr_criterion, epoch, writer): 
+def validate(generator, val_loader, psnr_criterion, epoch, writer): 
     """
         validation based on psnr
     """
 
     with torch.no_grad(): 
         psnrs = []
-        for i, sample in enumerate(val_dataloader): 
+        for i, sample in enumerate(val_loader): 
             hr = sample["hr"].to(config.device) 
             lr = sample["lr"].to(config.device)
 
@@ -140,10 +140,10 @@ def resume_from_checkpoints(generator, discriminator):
         print(f"Training in {config.train_mode} mode from scratch \n")
 
 
-def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch): 
+def train_psnr(generator, g_optim, train_loader, l1_criterion, writer, epoch): 
 
 
-    for i, samples in enumerate(train_dataloader): 
+    for i, samples in enumerate(train_loader): 
         
         # load data 
         hr = samples["hr"].to(config.device) 
@@ -159,10 +159,82 @@ def train_psnr(generator, g_optim, train_dataloader, l1_criterion, writer, epoch
         g_optim.step()
 
         # writing with tensorboard
-        writer.add_scalar(f"{config.train_mode}/l1_loss_psnr_state", l1_loss, epoch*len(train_dataloader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/l1_loss_psnr_state", l1_loss, epoch*len(train_loader) + i + 1)
         
         if i % 50 == 0 and i != 0: 
-            print(f"EPOCH={epoch} [{i}/{len(train_dataloader)}]L1 loss in psnr training mode : {l1_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]L1 loss in psnr training mode : {l1_loss} ")  
+
+
+def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1_criterion, vgg_criterion, adversarial_criterion, writer, epoch): 
+
+
+    for i, sample in enumerate(train_loader): 
+        
+        hr = sample["hr"] 
+        lr = sample["lr"] 
+
+        # generated super resolution 
+        sr = generator(lr)
+
+        ###### train discriminator ######
+
+
+        for param in discriminator.parameters():
+            param.requires_grad = True
+
+        discriminator.zero_grad()
+
+        true_label = torch.full(sr.shape[0], fill_value=1.0, device=config.device)
+        fake_label = torch.full(sr.shape[0], fill_value=1.0, device=config.device)
+
+        predicted_true = discriminator(hr)
+        predicted_fake = discriminator(sr.detach())
+
+        d_loss_true = adversarial_criterion(torch.sigmoid(predicted_true - predicted_fake.mean(dim=0)), true_label)
+        d_loss_fake = adversarial_criterion(torch.sigmoid(predicted_fake - predicted_true.mean(dim=0)), fake_label)
+
+        # optimization 
+        
+        d_loss = d_loss_fake + d_loss_true
+        d_loss.backward()
+        d_optim.step()
+
+
+        ###### train generator ######
+        for param in discriminator.parameters():
+            param.requires_grad = False
+        
+        generator.zero_grad()
+
+        d_out_generated = discriminator(sr)
+
+        # mse/vgg loss
+        vgg_loss = vgg_criterion(sr, hr)
+        # tricking the discriminator
+        adversarial_loss = config.adversarial_coefficient * adversarial_criterion(d_out_generated, true_label) 
+        # l1 criterion
+        l1_loss = config.l1_coefficient * l1_criterion(sr, hr)
+        # relativistic loss
+        relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - predicted_true.mean(dim=0)), true_label)
+        
+        # complete loss
+        g_loss = vgg_loss + adversarial_loss + l1_loss + relativistic_loss
+        # optimization 
+        g_loss.backward()
+        g_optim.step()
+
+        # writing with tensorboard
+        writer.add_scalar(f"{config.train_mode}/l1_loss", l1_loss, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/vgg_loss", vgg_loss, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/adversarial_loss", adversarial_loss, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/relativistic_loss", relativistic_loss, epoch*len(train_loader) + i + 1)
+
+        if i % 200 == 0 and i != 0: 
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]L1 loss in {config.train_mode} mode : {l1_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]VGG loss in {config.train_mode} : {vgg_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]adversarial_loss loss in {config.train_mode} : {adversarial_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]relativistic_loss loss in {config.train_mode} : {relativistic_loss} ")  
+
 
 
 def main(): 
@@ -214,9 +286,9 @@ def main():
             if config.train_mode == "psnr_oriented": 
                 train_psnr(generator, g_optim, train_loader, l1_criterion, writer, epoch) 
             elif config.train_mode == "post_training": 
-                train_post_psnr(generator, discriminator)
+                train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1_criterion, vgg_criterion, adversarial_criterion, writer, epoch)
             
-            
+        
             print("----- Validation step -----")
             psnr = validate(generator, val_loader, psnr_criterion, epoch, writer)
             print(f"----- Validation score on PSNR : {psnr}")
@@ -224,9 +296,12 @@ def main():
             if psnr >= best_psnr: 
                 print(f"----- Saving new best weights for epoch {epoch} -----")
                 best_psnr = psnr
-                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen.pth"))
+                torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen_{config.train_mode}.pth"))
+                if config.train_mode == "post_training":
+                    torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_d, f"best_weight_dis_{config.train_mode}.pth"))
 
             torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch={epoch+1}.pth"))
+            torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_epoch_d, f"g_epoch={epoch+1}.pth"))
 
             g_scheduler.step() 
 

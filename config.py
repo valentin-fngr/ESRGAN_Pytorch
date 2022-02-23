@@ -24,7 +24,7 @@ lr_size = hr_size // upsample_coefficient
 batch_size = 16
 
 # experience 
-experience_name = "train_psnr_oriented" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+experience_name = "train_post_psnr" + datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
 # dataset path 
 data_dir = os.path.join(os.getcwd(), "data")
@@ -74,6 +74,7 @@ if mode == "train_esrgan":
     # loss function coefficients
     l1_coefficient = 5*1e-3
     relativistic_coefficient = 1*1e-2 
+    adversarial_coefficient = 1e-3
 
     # your image folder before train test split folders
     main_folder = os.path.join(data_dir, "faces/img")
