@@ -46,7 +46,7 @@ if mode == "train_esrgan":
 
     # use psnr_oriented if it's the first time you are training the model 
     # use post_training to initialize the model with parameters from psnr_oriented training (generator)
-    train_mode = "psnr_oriented"
+    train_mode = "post_training"
     learning_rate_psnr = 2*1e-4
     learning_rate_post = 1e-4
 
@@ -61,7 +61,7 @@ if mode == "train_esrgan":
     print_frequency = 500
     resume = False     
     start_epoch = 0
-    best_weight_g = "checkpoints/best/generator/best_weight_gen.pth"
+    best_weight_g = "checkpoints/best/generator/best_weight_gen_psnr_oriented.pth"
     best_weight_d = ""
     # use split_inside = True if you have only one folder containing all images, 
     # so the data can be splitted inside this folder

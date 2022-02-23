@@ -14,12 +14,12 @@ class CustomDataset(Dataset):
         self.hr_size = hr_size
 
         self.hr_transforms = transforms.Compose([
-            transforms.Resize(hr_size), 
+            transforms.Resize((hr_size, hr_size)), 
             transforms.ToTensor(), 
             transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         ])
         self.lr_transforms = transforms.Compose([
-            transforms.Resize(hr_size // upscale_factor), 
+            transforms.Resize((hr_size // upscale_factor, hr_size // upscale_factor)), 
             transforms.ToTensor(), 
             transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
         ])

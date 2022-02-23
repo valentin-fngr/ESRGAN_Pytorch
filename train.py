@@ -51,7 +51,7 @@ def get_models(generator_weights=None, discriminator_weights=None):
         TODO : add saved weight when resume = True
     """
     # discriminator backbone
-    discriminator = Discriminator()
+    discriminator = Discriminator().to(config.device)
 
     generator = Generator(config.lr_size).to(config.device)
     return generator, discriminator
@@ -121,7 +121,7 @@ def get_scheduler(g_optim, d_optim):
 
 
 def resume_from_checkpoints(generator, discriminator): 
-    if config.resume: 
+    if config.resume or config.train_mode == "post_training": 
         # check for best weights in directories 
         if config.best_weight_g: 
             trained_weights = torch.load(config.best_weight_g)
@@ -170,8 +170,8 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
 
     for i, sample in enumerate(train_loader): 
         
-        hr = sample["hr"] 
-        lr = sample["lr"] 
+        hr = sample["hr"].to(config.device) 
+        lr = sample["lr"].to(config.device) 
 
         # generated super resolution 
         sr = generator(lr)
@@ -184,19 +184,19 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
 
         discriminator.zero_grad()
 
-        true_label = torch.full(sr.shape[0], fill_value=1.0, device=config.device)
-        fake_label = torch.full(sr.shape[0], fill_value=1.0, device=config.device)
+        true_label = torch.full(size=(sr.shape[0], 1), fill_value=1.0, device=config.device)
+        fake_label = torch.full(size=(sr.shape[0], 1), fill_value=1.0, device=config.device)
 
         predicted_true = discriminator(hr)
         predicted_fake = discriminator(sr.detach())
 
         d_loss_true = adversarial_criterion(torch.sigmoid(predicted_true - predicted_fake.mean(dim=0)), true_label)
+        d_loss_true.backward()
         d_loss_fake = adversarial_criterion(torch.sigmoid(predicted_fake - predicted_true.mean(dim=0)), fake_label)
-
+        d_loss_fake.backward()
         # optimization 
         
         d_loss = d_loss_fake + d_loss_true
-        d_loss.backward()
         d_optim.step()
 
 
@@ -207,34 +207,35 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
         generator.zero_grad()
 
         d_out_generated = discriminator(sr)
-
         # mse/vgg loss
         vgg_loss = vgg_criterion(sr, hr)
+        vgg_loss.backward()
         # tricking the discriminator
         adversarial_loss = config.adversarial_coefficient * adversarial_criterion(d_out_generated, true_label) 
+        adversarial_loss.backward()
         # l1 criterion
         l1_loss = config.l1_coefficient * l1_criterion(sr, hr)
+        l1_loss.backward()
         # relativistic loss
         relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - predicted_true.mean(dim=0)), true_label)
-        
+        relativistic_loss.backward()
+
         # complete loss
         g_loss = vgg_loss + adversarial_loss + l1_loss + relativistic_loss
         # optimization 
-        g_loss.backward()
         g_optim.step()
 
         # writing with tensorboard
+        writer.add_scalar(f"{config.train_mode}/D_LOSS", d_loss, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/G_LOSS", g_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/l1_loss", l1_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/vgg_loss", vgg_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/adversarial_loss", adversarial_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/relativistic_loss", relativistic_loss, epoch*len(train_loader) + i + 1)
 
         if i % 200 == 0 and i != 0: 
-            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]L1 loss in {config.train_mode} mode : {l1_loss} ")  
-            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]VGG loss in {config.train_mode} : {vgg_loss} ")  
-            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]adversarial_loss loss in {config.train_mode} : {adversarial_loss} ")  
-            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]relativistic_loss loss in {config.train_mode} : {relativistic_loss} ")  
-
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]D_LOSS in {config.train_mode} mode : {d_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]G_LOSS in {config.train_mode} : {g_loss} ")  
 
 
 def main(): 
@@ -279,6 +280,7 @@ def main():
 
 
         generator.train()
+        discriminator.train()
         best_psnr = 0.0
 
         for epoch in range(config.epochs): 
@@ -298,10 +300,10 @@ def main():
                 best_psnr = psnr
                 torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_g, f"best_weight_gen_{config.train_mode}.pth"))
                 if config.train_mode == "post_training":
-                    torch.save(generator.state_dict(), os.path.join(config.checkpoints_best_d, f"best_weight_dis_{config.train_mode}.pth"))
+                    torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_best_d, f"best_weight_dis_{config.train_mode}.pth"))
 
-            torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch={epoch+1}.pth"))
-            torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_epoch_d, f"g_epoch={epoch+1}.pth"))
+            torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch_{config.train_mode}={epoch+1}.pth"))
+            torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_epoch_d, f"g_epoch={epoch+1}_{config.train_mode}.pth"))
 
             g_scheduler.step() 
 

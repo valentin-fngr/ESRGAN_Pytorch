@@ -180,7 +180,7 @@ class ContentLoss(nn.Module):
     def __init__(self): 
         super(ContentLoss, self).__init__()
         self.vgg19 = torchvision.models.vgg19(pretrained=True).eval()
-        self.layers = list(self.vgg19.features.children())[:36]
+        self.layers = nn.Sequential(*list(self.vgg19.features.children())[:36])
         self.loss = torch.nn.MSELoss()
 
     def forward(self, sr, hr): 
