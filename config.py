@@ -42,7 +42,7 @@ checkpoints_best_d = os.path.join(checkpoints_dir, "best/discriminator")
 residual_scaling = 0.2
 
 if mode == "train_esrgan": 
-    epochs = 40
+    epochs = 8
 
     # use psnr_oriented if it's the first time you are training the model 
     # use post_training to initialize the model with parameters from psnr_oriented training (generator)

@@ -298,7 +298,7 @@ def main():
                     torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_best_d, f"best_weight_dis_{config.train_mode}.pth"))
 
             torch.save(generator.state_dict(), os.path.join(config.checkpoints_epoch_g, f"g_epoch_{config.train_mode}={epoch+1}.pth"))
-            torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_epoch_d, f"g_epoch={epoch+1}_{config.train_mode}.pth"))
+            torch.save(discriminator.state_dict(), os.path.join(config.checkpoints_epoch_d, f"d_epoch={epoch+1}_{config.train_mode}.pth"))
 
             g_scheduler.step() 
 
