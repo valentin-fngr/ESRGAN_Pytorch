@@ -191,12 +191,11 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
         predicted_fake = discriminator(sr.detach())
 
         d_loss_true = adversarial_criterion(torch.sigmoid(predicted_true - predicted_fake.mean(dim=0)), true_label)
-        d_loss_true.backward()
         d_loss_fake = adversarial_criterion(torch.sigmoid(predicted_fake - predicted_true.mean(dim=0)), fake_label)
-        d_loss_fake.backward()
         # optimization 
         
         d_loss = d_loss_fake + d_loss_true
+        d_loss.backward()
         d_optim.step()
 
 
@@ -208,20 +207,16 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
 
         d_out_generated = discriminator(sr)
         # mse/vgg loss
-        vgg_loss = vgg_criterion(sr, hr)
-        vgg_loss.backward()
+        vgg_loss = vgg_criterion(sr, hr.detach())
         # tricking the discriminator
         adversarial_loss = config.adversarial_coefficient * adversarial_criterion(d_out_generated, true_label) 
-        adversarial_loss.backward()
         # l1 criterion
-        l1_loss = config.l1_coefficient * l1_criterion(sr, hr)
-        l1_loss.backward()
+        l1_loss = config.l1_coefficient * l1_criterion(sr, hr.detach())
         # relativistic loss
-        relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - predicted_true.mean(dim=0)), true_label)
-        relativistic_loss.backward()
-
+        relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - predicted_true.mean(dim=0).detach()), true_label)
         # complete loss
-        g_loss = vgg_loss + adversarial_loss + l1_loss + relativistic_loss
+        g_loss = vgg_loss + adversarial_loss + l1_loss  + relativistic_loss
+        g_loss.backward()
         # optimization 
         g_optim.step()
 
@@ -233,7 +228,7 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
         writer.add_scalar(f"{config.train_mode}/adversarial_loss", adversarial_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/relativistic_loss", relativistic_loss, epoch*len(train_loader) + i + 1)
 
-        if i % 200 == 0 and i != 0: 
+        if i % 50 == 0 and i != 0: 
             print(f"EPOCH={epoch} [{i}/{len(train_loader)}]D_LOSS in {config.train_mode} mode : {d_loss} ")  
             print(f"EPOCH={epoch} [{i}/{len(train_loader)}]G_LOSS in {config.train_mode} : {g_loss} ")  
 
