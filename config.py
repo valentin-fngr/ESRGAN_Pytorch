@@ -10,7 +10,7 @@ device = torch.device("cuda", 0)
 
 
 # mode selection : traning esrgan | validation
-mode = "train_esrgan"
+mode = "validation"
 
 # high resolution size 
 hr_size = 128
@@ -38,6 +38,9 @@ checkpoints_epoch_d = os.path.join(checkpoints_dir, "on_epoch/discriminator")
 checkpoints_best_g = os.path.join(checkpoints_dir, "best/generator")
 checkpoints_best_d = os.path.join(checkpoints_dir, "best/discriminator")
 
+best_weight_g = "checkpoints/best/generator/best_weight_gen_post_training.pth"
+best_weight_d = ""
+
 # residual scaling
 residual_scaling = 0.2
 
@@ -61,8 +64,7 @@ if mode == "train_esrgan":
     print_frequency = 500
     resume = False     
     start_epoch = 0
-    best_weight_g = "checkpoints/best/generator/best_weight_gen_psnr_oriented.pth"
-    best_weight_d = ""
+    
     # use split_inside = True if you have only one folder containing all images, 
     # so the data can be splitted inside this folder
     split_inside = False
@@ -82,3 +84,9 @@ if mode == "train_esrgan":
     training_data = os.path.join(data_dir, "faces/img/train")
     validation_data = os.path.join(data_dir, "faces/img/val")
     test_data = os.path.join(data_dir, "faces/img/test")
+
+elif mode == "validation": 
+    
+    test_hr_directory = os.path.join(os.getcwd(), "data/Set5/original")
+    test_result_directory = os.path.join(os.getcwd(), "results/test")
+    
