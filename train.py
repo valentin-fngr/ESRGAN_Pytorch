@@ -167,7 +167,7 @@ def train_psnr(generator, g_optim, train_loader, l1_criterion, writer, epoch):
 
 def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1_criterion, vgg_criterion, adversarial_criterion, writer, epoch): 
 
-
+    
     for i, sample in enumerate(train_loader): 
         
         hr = sample["hr"].to(config.device) 
@@ -182,10 +182,10 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
         for param in discriminator.parameters():
             param.requires_grad = True
 
-        discriminator.zero_grad()
+        d_optim.zero_grad()
 
         true_label = torch.full(size=(sr.shape[0], 1), fill_value=1.0, device=config.device)
-        fake_label = torch.full(size=(sr.shape[0], 1), fill_value=1.0, device=config.device)
+        fake_label = torch.full(size=(sr.shape[0], 1), fill_value=0.0, device=config.device)
 
         predicted_true = discriminator(hr)
         predicted_fake = discriminator(sr.detach())
@@ -203,33 +203,40 @@ def train_post_psnr(generator, discriminator, g_optim, d_optim, train_loader, l1
         for param in discriminator.parameters():
             param.requires_grad = False
         
-        generator.zero_grad()
+        g_optim.zero_grad()
 
         d_out_generated = discriminator(sr)
+        d_out_hr = discriminator(hr.detach())
         # mse/vgg loss
         vgg_loss = vgg_criterion(sr, hr.detach())
-        # tricking the discriminator
-        adversarial_loss = config.adversarial_coefficient * adversarial_criterion(d_out_generated, true_label) 
         # l1 criterion
         l1_loss = config.l1_coefficient * l1_criterion(sr, hr.detach())
         # relativistic loss
-        relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - predicted_true.mean(dim=0).detach()), true_label)
+        relativistic_loss = config.relativistic_coefficient * adversarial_criterion(torch.sigmoid(d_out_generated - d_out_hr.mean(dim=0)), true_label)
         # complete loss
-        g_loss = vgg_loss + adversarial_loss + l1_loss  + relativistic_loss
+        g_loss = vgg_loss + l1_loss  + relativistic_loss
         g_loss.backward()
         # optimization 
         g_optim.step()
+
+        # metrics
+        d_hr_prob = torch.sigmoid(d_out_hr.mean(dim=0))
+        d_sr_prob = torch.sigmoid(d_out_generated.detach().mean(dim=0))
+
 
         # writing with tensorboard
         writer.add_scalar(f"{config.train_mode}/D_LOSS", d_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/G_LOSS", g_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/l1_loss", l1_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/vgg_loss", vgg_loss, epoch*len(train_loader) + i + 1)
-        writer.add_scalar(f"{config.train_mode}/adversarial_loss", adversarial_loss, epoch*len(train_loader) + i + 1)
         writer.add_scalar(f"{config.train_mode}/relativistic_loss", relativistic_loss, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/D(HR)", d_hr_prob, epoch*len(train_loader) + i + 1)
+        writer.add_scalar(f"{config.train_mode}/D(SR)", d_sr_prob, epoch*len(train_loader) + i + 1)
 
         if i % 50 == 0 and i != 0: 
             print(f"EPOCH={epoch} [{i}/{len(train_loader)}]D_LOSS in {config.train_mode} mode : {d_loss} ")  
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]D(HR) in {config.train_mode} : {d_hr_prob} ")
+            print(f"EPOCH={epoch} [{i}/{len(train_loader)}]D(SR) in {config.train_mode} : {d_sr_prob} ")    
             print(f"EPOCH={epoch} [{i}/{len(train_loader)}]G_LOSS in {config.train_mode} : {g_loss} ")  
 
 
