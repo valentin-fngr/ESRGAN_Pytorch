@@ -1,3 +1,4 @@
+from turtle import forward
 import torch 
 import numpy as np 
 import torch.nn as nn 
@@ -6,35 +7,48 @@ import config
 import torchvision
 
 
-class RRDB(nn.Module): 
+class DenselyConnectedLayer(nn.Module): 
     """
-        RRDB block
+        RRDB block ( https://arxiv.org/pdf/1608.06993.pdf )
     """ 
     
-    def __init__(self, in_c, k=3): 
-        super(RRDB, self).__init__() 
-        self.conv1 = nn.Conv2d(in_c, in_c, k, padding=1)
-        self.conv2 = nn.Conv2d(in_c, in_c, k, padding=1)
-        self.conv3 = nn.Conv2d(in_c, in_c, k, padding=1)
-        self.conv4 = nn.Conv2d(in_c, in_c, k, padding=1)
-        self.conv5 = nn.Conv2d(in_c, in_c, k, padding=1)
+    def __init__(self, in_c, k_growth, kernel_size=3): 
+        super(DenselyConnectedLayer, self).__init__() 
+        self.conv1 = nn.Conv2d(in_c , k_growth, kernel_size, padding=1)
+        self.conv2 = nn.Conv2d(in_c + k_growth, k_growth, kernel_size, padding=1)
+        self.conv3 = nn.Conv2d(in_c + 2*k_growth,k_growth, kernel_size, padding=1)
+        self.conv4 = nn.Conv2d(in_c +  3*k_growth, k_growth, kernel_size, padding=1)
+        self.conv5 = nn.Conv2d(in_c +  4*k_growth, in_c, kernel_size, padding=1)
 
 
     def forward(self, inputs): 
         out0 = inputs
-        out1 = F.leaky_relu(self.conv1(inputs), config.lrelu_slope)
-        out1 = out0 + out1
-        out2 = F.leaky_relu(self.conv2(out1), config.lrelu_slope)
-        out2 = out0 + out2 + out1 
-        out3 = F.leaky_relu(self.conv2(out2), config.lrelu_slope)
-        out3 = out0 + out2 + out3
-        out4 = F.leaky_relu(self.conv2(out3), config.lrelu_slope)
-        out4 = out2 + out0 + out4 + out1 
+        out1 = F.leaky_relu(self.conv1(out0), config.lrelu_slope)
+        out2 = F.leaky_relu(self.conv2(torch.cat([out0, out1], dim=1)), config.lrelu_slope)
+        out3 = F.leaky_relu(self.conv3(torch.cat([out0, out1, out2], dim=1)), config.lrelu_slope)
+        out4 = F.leaky_relu(self.conv4(torch.cat([out0, out1, out2, out3], dim=1)), config.lrelu_slope)
+        out5 = self.conv5(torch.cat([out0, out1, out2, out3, out4], dim=1))
 
-        out5 = self.conv5(out4)
-        
         return out5
 
+
+class RRDB(nn.Module): 
+
+    def __init__(self, in_c, k_growth): 
+        super(RRDB, self).__init__()
+        self.layer1 = DenselyConnectedLayer(in_c, k_growth)
+        self.layer2 = DenselyConnectedLayer(in_c, k_growth)
+        self.layer3 = DenselyConnectedLayer(in_c, k_growth)
+        self.layer4 = DenselyConnectedLayer(in_c, k_growth)
+
+    def forward(self, inputs): 
+        out1 = self.layer1(inputs) * config.residual_scaling
+        out2 = self.layer2(inputs) * config.residual_scaling
+        out3 = self.layer3(inputs) * config.residual_scaling
+        out4 = self.layer4(inputs) * config.residual_scaling
+        output = out1 + out2 + out3 + out4
+
+        return output
 
 
 class Generator(nn.Module): 
@@ -43,16 +57,8 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.conv1 = torch.nn.Conv2d(3, 64, 3, padding=1)
 
-        self.rrdb1 = RRDB(64, 3)
-        self.rrdb2 = RRDB(64, 3)
-        self.rrdb3 = RRDB(64, 3)
-        self.rrdb4 = RRDB(64, 3)
-        self.rrdb5 = RRDB(64, 3)
-        self.rrdb6 = RRDB(64, 3)
-        self.rrdb7 = RRDB(64, 3)
-        self.rrdb8 = RRDB(64, 3)
-        self.rrdb9 = RRDB(64, 3)
-        self.rrdb10 = RRDB(64, 3)
+        self.rrdbs = nn.Sequential(*[RRDB(64, 32) for i in range(16)])
+        
         self.prelu = nn.PReLU()
         self.conv2 = torch.nn.Conv2d(64, 64, 3, padding=1)
         
@@ -72,28 +78,8 @@ class Generator(nn.Module):
 
     def forward(self, inputs): 
         out0 = self.prelu(self.conv1(inputs))
-        block1 = self.rrdb1(out0) * config.residual_scaling
-        block1 = block1 + out0
-        block2 = self.rrdb2(block1) * config.residual_scaling
-        block2 = block1 + block2
-        block3 = self.rrdb3(block2) * config.residual_scaling 
-        block3 = block2 + block3 
-        block4 = self.rrdb4(block3) * config.residual_scaling
-        block4 = block3 + block4 
-        block5 = self.rrdb5(block4) * config.residual_scaling
-        block5 = block4 + block5 
-        block6 = self.rrdb6(block5) * config.residual_scaling
-        block6 = block5 + block6 
-        block7 = self.rrdb7(block6) * config.residual_scaling
-        block7 = block6 + block7 
-        block8 = self.rrdb8(block7) * config.residual_scaling
-        block8 = block4 + block8 
-        block9 = self.rrdb9(block8) * config.residual_scaling
-        block9 = block4 + block9 
-        block10 = self.rrdb10(block9) * config.residual_scaling
-        block10 = block4 + block10 
-
-        out1 = self.prelu(self.conv2(block10))
+        rrdb_pass = self.rrdbs(out0)
+        out1 = self.prelu(self.conv2(rrdb_pass))
         out1 = out1 + out0 
         out2 = self.upsampling_block(out1)
         
@@ -179,8 +165,10 @@ class ContentLoss(nn.Module):
 
     def __init__(self): 
         super(ContentLoss, self).__init__()
-        self.vgg19 = torchvision.models.vgg19(pretrained=True).eval()
-        self.layers = nn.Sequential(*list(self.vgg19.features.children())[:36])
+        vgg19 = torchvision.models.vgg19(pretrained=True).eval()
+        self.layers = nn.Sequential(*list(vgg19.features.children())[:36])
+        for param in self.layers.parameters():
+            param.requires_grad = False
         self.loss = torch.nn.MSELoss()
 
     def forward(self, sr, hr): 
