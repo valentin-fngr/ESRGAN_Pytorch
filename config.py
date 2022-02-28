@@ -45,11 +45,11 @@ best_weight_d = ""
 residual_scaling = 0.2
 
 if mode == "train_esrgan": 
-    epochs = 8
+    epochs = 40
 
     # use psnr_oriented if it's the first time you are training the model 
     # use post_training to initialize the model with parameters from psnr_oriented training (generator)
-    train_mode = "post_training"
+    train_mode = "psnr_oriented"
     learning_rate_psnr = 2*1e-4
     learning_rate_post = 1e-4
 
